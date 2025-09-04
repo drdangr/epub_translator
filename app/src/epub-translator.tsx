@@ -187,77 +187,7 @@ const EPUBTranslator = () => {
     return serialized;
   };
 
-  // Анализ структуры EPUB файла
-  interface EpubAnalysis {
-    label: string;
-    totalSize: number;
-    fileCount: number;
-    fileOrder: string[];
-    structure: {
-      mimetype?: { content: string; isFirst: boolean };
-      container?: { present: boolean; content: string };
-      htmlFiles?: number;
-    };
-    issues: string[];
-  }
-
-  const analyzeEPUB = async (epubBlob: Blob, label: string): Promise<EpubAnalysis> => {
-    const JSZip: any = await loadJSZip();
-    const zip = new JSZip();
-    const arrayBuffer = await epubBlob.arrayBuffer();
-    const epub = await zip.loadAsync(arrayBuffer);
-    
-    const analysis: EpubAnalysis = {
-      label,
-      totalSize: epubBlob.size,
-      fileCount: Object.keys(epub.files).length,
-      fileOrder: [] as string[],
-      structure: {} as EpubAnalysis['structure'],
-      issues: [] as string[]
-    };
-
-    // Анализируем порядок файлов
-    Object.keys(epub.files).forEach(path => {
-      if (!epub.files[path].dir) {
-        analysis.fileOrder.push(path);
-      }
-    });
-
-    // Проверяем mimetype
-    if (epub.files['mimetype']) {
-      const mimeContent = await epub.files['mimetype'].async('string');
-      analysis.structure.mimetype = {
-        content: mimeContent.trim(),
-        isFirst: analysis.fileOrder[0] === 'mimetype'
-      };
-      
-      if (analysis.structure.mimetype.content !== 'application/epub+zip') {
-        analysis.issues.push('Неправильный mimetype');
-      }
-      if (!analysis.structure.mimetype.isFirst) {
-        analysis.issues.push('mimetype не первый файл');
-      }
-    } else {
-      analysis.issues.push('Отсутствует mimetype');
-    }
-
-    // Проверяем container.xml
-    if (epub.files['META-INF/container.xml']) {
-      const containerContent = await epub.files['META-INF/container.xml'].async('string');
-      analysis.structure.container = {
-        present: true,
-        content: containerContent.substring(0, 200) + '...'
-      };
-    } else {
-      analysis.issues.push('Отсутствует container.xml');
-    }
-
-    // HTML файлы
-    const htmlFiles = analysis.fileOrder.filter((f: string) => f.match(/\.(html|xhtml)$/i));
-    analysis.structure.htmlFiles = htmlFiles.length;
-
-    return analysis;
-  };
+  // (Removed: internal EPUB analysis helpers that were used by compare UI)
 
   // Сравнение было удалено вместе с UI; функция не нужна
 
