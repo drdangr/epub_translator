@@ -10,6 +10,7 @@ const EPUBTranslator = () => {
   // comparison removed
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gpt-4o-mini');
+  const [targetLang, setTargetLang] = useState<string>('Ukrainian');
   const [showSettings, setShowSettings] = useState(false);
   const [isDropFocus, setIsDropFocus] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -17,8 +18,10 @@ const EPUBTranslator = () => {
   useEffect(() => {
     const savedKey = localStorage.getItem('openai_api_key') || '';
     const savedModel = localStorage.getItem('openai_model') || 'gpt-4o-mini';
+    const savedLang = localStorage.getItem('target_language') || 'Ukrainian';
     setApiKey(savedKey);
     setModel(savedModel);
+    setTargetLang(savedLang);
   }, []);
 
   useEffect(() => {
@@ -28,6 +31,10 @@ const EPUBTranslator = () => {
   useEffect(() => {
     try { localStorage.setItem('openai_model', model || 'gpt-4o-mini'); } catch {}
   }, [model]);
+
+  useEffect(() => {
+    try { localStorage.setItem('target_language', targetLang || 'Ukrainian'); } catch {}
+  }, [targetLang]);
 
   // Функция для загрузки JSZip из CDN
   const loadJSZip = (): Promise<any> => {
@@ -64,6 +71,12 @@ const EPUBTranslator = () => {
 
   // Перевод массива сегментов через OpenAI, возвращает массив переводов в том же порядке
   const translateSegmentsWithOpenAI = async (segments: string[], controller?: AbortController) => {
+    const target = (targetLang || '').trim() || 'English';
+    const codeMap: Record<string, string> = {
+      english: 'en', ukrainian: 'uk', russian: 'ru', german: 'de', french: 'fr', spanish: 'es',
+      italian: 'it', polish: 'pl', portuguese: 'pt', chinese: 'zh', japanese: 'ja', korean: 'ko'
+    };
+    const iso = codeMap[target.toLowerCase()];
     const url = 'https://api.openai.com/v1/chat/completions';
     const body = {
       model: model || 'gpt-4o-mini',
@@ -71,11 +84,11 @@ const EPUBTranslator = () => {
       messages: [
         {
           role: 'system',
-          content: 'You are a professional book translator. Translate Russian to Ukrainian. Return only strict JSON with key "translations" as an array of strings. Keep markup placeholders unchanged.'
+          content: `You are a professional book translator. Translate every input segment strictly into ${target}${iso ? ` (ISO-639-1: ${iso})` : ''}. Do not keep any source-language words except numbers and markup. Return only strict JSON with key "translations" as an array of strings.`
         },
         {
           role: 'user',
-          content: JSON.stringify({ task: 'translate_list', source_language: 'ru', target_language: 'uk', segments })
+          content: JSON.stringify({ task: 'translate_list', target_language_name: target, target_language_code: iso || null, segments, segmentsCount: segments.length, requirements: 'Return JSON {"translations": string[]} with exactly segmentsCount items (1:1 to input order). No commentary or code fences.' })
         }
       ]
     };
@@ -106,13 +119,28 @@ const EPUBTranslator = () => {
       const cleaned = content.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
       parsed = JSON.parse(cleaned);
     }
-    if (!parsed || !Array.isArray(parsed.translations)) {
-      throw new Error('Некорректный формат ответа OpenAI (ожидался { translations: string[] })');
+    let translations: string[] = Array.isArray(parsed?.translations)
+      ? parsed.translations.map((x: any) => String(x))
+      : typeof parsed?.translations === 'string'
+        ? [parsed.translations]
+        : [];
+
+    // Нормализуем длину под входные сегменты
+    if (translations.length !== segments.length) {
+      if (translations.length === 1 && segments.length > 1) {
+        translations = Array(segments.length).fill(translations[0]);
+      } else if (translations.length < segments.length) {
+        // дополним исходными сегментами, чтобы не рушить структуру
+        const copy = [...translations];
+        for (let i = translations.length; i < segments.length; i++) {
+          copy.push(segments[i]);
+        }
+        translations = copy;
+      } else if (translations.length > segments.length) {
+        translations = translations.slice(0, segments.length);
+      }
     }
-    if (parsed.translations.length !== segments.length) {
-      throw new Error('Размер перевода не совпадает с количеством сегментов');
-    }
-    return parsed.translations;
+    return translations;
   };
 
   // Перевод HTML/XHTML с сохранением структуры DOM
@@ -294,7 +322,7 @@ const EPUBTranslator = () => {
     const url = URL.createObjectURL(translatedContent);
     const a = document.createElement('a');
     a.href = url;
-    a.download = file.name.replace(/\.epub$/i, '_ua.epub');
+    a.download = file.name.replace(/\.epub$/i, '_translated.epub');
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -363,6 +391,16 @@ const EPUBTranslator = () => {
                         <option value="gpt-4o-mini">gpt-4o-mini</option>
                         <option value="gpt-4o">gpt-4o</option>
                       </select>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm text-gray-700 mb-1">Translate to (Choose Language)</label>
+                      <input
+                        type="text"
+                        value={targetLang}
+                        onChange={(e) => setTargetLang(e.target.value)}
+                        placeholder="e.g. Ukrainian, English, German"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
                     </div>
                   </div>
                 )}
