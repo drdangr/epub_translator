@@ -11,6 +11,7 @@ const EPUBTranslator = () => {
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gpt-4o-mini');
   const [showSettings, setShowSettings] = useState(false);
+  const [isDropFocus, setIsDropFocus] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -425,6 +426,11 @@ const EPUBTranslator = () => {
     setComparison(null);
   };
 
+  const openFileDialog = () => {
+    const el = document.getElementById('epub-input') as HTMLInputElement | null;
+    el?.click();
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="max-w-6xl mx-auto">
@@ -439,7 +445,7 @@ const EPUBTranslator = () => {
         <div className="bg-white rounded-2xl shadow-xl p-8">
           {status === 'idle' && (
             <div className="space-y-6">
-              <div className="bg-gray-50 p-6 rounded-xl mb-10">
+              <div className="bg-gray-50 p-6 rounded-xl mb-20">
                 <div className="flex items-center justify-end mb-8">
                   <button
                     onClick={() => setShowSettings(v => !v)}
@@ -478,14 +484,21 @@ const EPUBTranslator = () => {
                 )}
               </div>
               <div
-                className="border-2 border-dashed border-indigo-300 rounded-2xl p-16 text-center hover:border-indigo-400 bg-indigo-50 hover:bg-indigo-100 transition-colors cursor-pointer min-h-[220px] flex flex-col items-center justify-center hover:shadow-md"
+                className="mt-14 border-2 border-dashed border-indigo-300 rounded-2xl p-16 text-center hover:border-indigo-400 bg-indigo-50 hover:bg-indigo-100 transition-colors cursor-pointer min-h-[220px] flex flex-col items-center justify-center hover:shadow-md ring-1 ring-transparent hover:ring-2 hover:ring-indigo-300 focus:ring-2 focus:ring-indigo-400 focus:outline-none"
                 onDrop={handleDrop}
                 onDragOver={(e) => e.preventDefault()}
-                onClick={() => { const el = document.getElementById('epub-input') as HTMLInputElement | null; el?.click(); }}
+                onClick={openFileDialog}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openFileDialog(); } }}
+                onFocus={() => setIsDropFocus(true)}
+                onBlur={() => setIsDropFocus(false)}
+                role="button"
+                tabIndex={0}
+                aria-label="Upload EPUB"
+                style={{ outline: isDropFocus ? '2px solid #6366f1' : 'none', outlineOffset: 4 as any, transition: 'outline 120ms ease' }}
               >
                 <Upload className="mx-auto mb-5 text-indigo-600" size={80} />
                 <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                  Choose an EPUB file
+                  Drop EPUB file here
                 </h3>
                 <input
                   id="epub-input"
@@ -514,7 +527,7 @@ const EPUBTranslator = () => {
                       disabled={!apiKey}
                       className={`px-6 py-3 rounded-lg transition-colors font-semibold ${apiKey ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
                     >
-                      Translate (fixed)
+                      Translate
                     </button>
                     {!apiKey && (
                       <span className="text-sm text-red-600 self-center">Provide OpenAI API key in Settings</span>
