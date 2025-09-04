@@ -1,12 +1,12 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, type ChangeEvent, type DragEvent } from 'react';
 import { Upload, FileText, Download, Languages, AlertCircle, CheckCircle, Settings } from 'lucide-react';
 
 const EPUBTranslator = () => {
-  const [file, setFile] = useState(null);
-  const [status, setStatus] = useState('idle');
-  const [progress, setProgress] = useState(0);
-  const [translatedContent, setTranslatedContent] = useState(null);
-  const [error, setError] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [status, setStatus] = useState<'idle' | 'analyzing' | 'translating' | 'completed' | 'error'>('idle');
+  const [progress, setProgress] = useState<number>(0);
+  const [translatedContent, setTranslatedContent] = useState<Blob | null>(null);
+  const [error, setError] = useState<string>('');
   // comparison removed
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gpt-4o-mini');
@@ -259,53 +259,7 @@ const EPUBTranslator = () => {
     return analysis;
   };
 
-  // Сравнение двух EPUB файлов
-  const compareEPUBs = async (original: Blob, translated: Blob) => {
-    try {
-      setStatus('analyzing');
-      
-      const originalAnalysis = await analyzeEPUB(original, 'Исходный');
-      const translatedAnalysis = await analyzeEPUB(translated, 'Переведенный');
-      
-      const comp: any = {
-        original: originalAnalysis,
-        translated: translatedAnalysis,
-        differences: [] as string[]
-      };
-
-      // Сравниваем структуры
-      if (originalAnalysis.fileOrder.length !== translatedAnalysis.fileOrder.length) {
-        comp.differences.push(`Разное количество файлов: ${originalAnalysis.fileOrder.length} vs ${translatedAnalysis.fileOrder.length}`);
-      }
-
-      // Сравниваем порядок файлов
-      const firstDiffIndex = originalAnalysis.fileOrder.findIndex((file, i) => 
-        file !== translatedAnalysis.fileOrder[i]
-      );
-      if (firstDiffIndex !== -1) {
-        comp.differences.push(`Разный порядок файлов с позиции ${firstDiffIndex}`);
-      }
-
-      // Сравниваем mimetype
-      const origMime = originalAnalysis.structure.mimetype;
-      const transMime = translatedAnalysis.structure.mimetype;
-      if (origMime && transMime) {
-        if (origMime.content !== transMime.content) {
-          comp.differences.push('Разное содержимое mimetype');
-        }
-        if (origMime.isFirst !== transMime.isFirst) {
-          comp.differences.push('Разная позиция mimetype');
-        }
-      }
-
-      setComparison(comp);
-      setStatus('idle');
-      
-    } catch (err) {
-      setError(`Ошибка сравнения: ${err.message}`);
-      setStatus('error');
-    }
-  };
+  // Сравнение было удалено вместе с UI; функция не нужна
 
   // Исправленная обработка EPUB с точным копированием структуры
   const processEPUBFixed = async (epubFile: File) => {
@@ -375,36 +329,37 @@ const EPUBTranslator = () => {
       setTranslatedContent(result);
       setStatus('completed');
       
-    } catch (err) {
-      if (err?.name === 'AbortError') {
+    } catch (err: unknown) {
+      if (err instanceof Error && (err as any).name === 'AbortError') {
         setError('Операция отменена');
         setStatus('idle');
+      } else if (err instanceof Error) {
+        setError(err.message);
+        setStatus('error');
       } else {
-        setError(err.message || String(err));
+        setError(String(err));
         setStatus('error');
       }
     }
   };
 
-  const handleFileSelect = (event) => {
-    const selectedFile = event.target.files[0];
+  const handleFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0];
     if (selectedFile) {
       setFile(selectedFile);
-      setComparison(null);
     }
   };
 
-  const handleDrop = useCallback((event) => {
+  const handleDrop = useCallback((event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
-    const droppedFile = event.dataTransfer.files[0];
+    const droppedFile = event.dataTransfer.files?.[0];
     if (droppedFile) {
       setFile(droppedFile);
-      setComparison(null);
     }
   }, []);
 
   const downloadFile = () => {
-    if (!translatedContent) return;
+    if (!translatedContent || !file) return;
     
     const url = URL.createObjectURL(translatedContent);
     const a = document.createElement('a');
@@ -423,7 +378,6 @@ const EPUBTranslator = () => {
     setProgress(0);
     setTranslatedContent(null);
     setError('');
-    setComparison(null);
   };
 
   const openFileDialog = () => {
